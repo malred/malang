@@ -1,0 +1,8 @@
+let x = fn(x,y){
+    return x + y;
+}
+x(1,3)
+let y = fn(x,y){
+    return x - y;
+}
+x(y(2,4),8)
