@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"malang/ast"
 	"malang/object"
+	"malang/util"
 )
 
 var (
@@ -72,13 +73,13 @@ func evalIntegerInfixExpression(operator string, left, right object.Object) obje
 	case "/":
 		return &object.Integer{Value: leftVal / rightVal}
 	case "<":
-		return &object.Boolean{Value: leftVal < rightVal}
+		return nativeBooleanObject(leftVal < rightVal)
 	case ">":
-		return &object.Boolean{Value: leftVal > rightVal}
+		return nativeBooleanObject(leftVal > rightVal)
 	case "==":
-		return &object.Boolean{Value: leftVal == rightVal}
+		return nativeBooleanObject(leftVal == rightVal)
 	case "!=":
-		return &object.Boolean{Value: leftVal != rightVal}
+		return nativeBooleanObject(leftVal != rightVal)
 	default:
 		return newError("unknown operator: %s %s %s", left.Type(), operator, right.Type())
 	}
@@ -104,6 +105,11 @@ func evalInfixExpression(operator string, left, right object.Object) object.Obje
 		return nativeBooleanObject(left == right)
 	case operator == "!=":
 		return nativeBooleanObject(left != right)
+	// todo: && 和 ||
+	case operator == "&&":
+		return nativeBooleanObject(left.(*object.Boolean).Value && right.(*object.Boolean).Value)
+	case operator == "||":
+		return nativeBooleanObject(left.(*object.Boolean).Value || right.(*object.Boolean).Value)
 	case left.Type() == object.STRING_OBJ && right.Type() == object.STRING_OBJ:
 		return evalStringInfixExpression(operator, left, right)
 	case left.Type() != right.Type():
@@ -237,12 +243,37 @@ func applyFunction(fn object.Object, args []object.Object) object.Object {
 	}
 }
 
+// 数组索引求值
+func evalArrayIndexExpression(array, index object.Object) object.Object {
+	arrayObj := array.(*object.Array)
+	idx := index.(*object.Integer).Value
+	max := int64(len(arrayObj.Elements) - 1)
+	if idx < 0 || idx > max {
+		return NULL
+	}
+	return arrayObj.Elements[idx]
+}
+
+// 索引表达式求值
+func evalIndexExpression(left, index object.Object) object.Object {
+	switch {
+	case left.Type() == object.ARRAY_OBJ && index.Type() == object.INTEGER_OBJ:
+		return evalArrayIndexExpression(left, index)
+	default:
+		return newError("index operator not supported: %s", left.Type())
+	}
+}
+
 func Eval(node ast.Node, env *object.Environment) object.Object {
 	switch node := node.(type) {
 	// 语句 -> 继续遍历
 	// 根节点
 	case *ast.Program:
 		return evalProgram(node, env)
+	// use导入语句
+	case *ast.UseExpression:
+		// 解析
+		return Eval(util.LoadMalFile(node.FileName), env)
 	// 块语句
 	case *ast.BlockStatement:
 		return evalBlockStatement(node, env)
@@ -286,16 +317,37 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	// IF语句
 	case *ast.IfExpression:
 		return evalIfExpression(node, env)
+	// 索引表达式
+	case *ast.IndexExpression:
+		left := Eval(node.Left, env)
+		if isError(left) {
+			return left
+		}
+		index := Eval(node.Index, env)
+		if isError(index) {
+			return index
+		}
+		return evalIndexExpression(left, index)
 	// 表达式语句
 	case *ast.ExpressionStatement:
 		return Eval(node.Expression, env)
 	// 表达式 -> 求值
 	case *ast.IntegerLiteral:
 		return &object.Integer{Value: node.Value}
+	// 布尔型
 	case *ast.Boolean:
 		return nativeBooleanObject(node.Value)
+	// 字符串
 	case *ast.StringLiteral:
 		return &object.String{Value: node.Value}
+	// 数组
+	case *ast.ArrayLiteral:
+		elements := evalExpressions(node.Elements, env)
+		if len(elements) == 1 && isError(elements[0]) {
+			return elements[0]
+		}
+		return &object.Array{Elements: elements}
+	// 前缀表达式
 	case *ast.PrefixExpression:
 		// 如果一直是!或-,就会一直Eval,直到遇到其他类型,多次执行!或-
 		right := Eval(node.Right, env)
@@ -304,6 +356,7 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 			return right
 		}
 		return evalPrefixExpression(node.Operator, right)
+	// 中缀表达式
 	case *ast.InfixExpression:
 		left := Eval(node.Left, env)
 		// 判断该中断是不是Error引发的

@@ -9,6 +9,7 @@ import (
 	"malang/lexer"
 	"malang/object"
 	"malang/parser"
+	"malang/util"
 )
 
 const PROMPT = ">> "
@@ -97,6 +98,12 @@ func Start(in io.Reader, out io.Writer) {
 	scanner := bufio.NewScanner(in)
 	env := object.NewEnvironment()
 	io.WriteString(out, MALRED_LOGO)
+	// 加载标准库
+	std := util.LoadStd()
+	l := lexer.New(std)
+	p := parser.New(l)
+	program := p.ParseProgram()
+	evaluator.Eval(program, env)
 
 	for {
 		fmt.Fprintf(out, PROMPT)
@@ -133,9 +140,11 @@ func printParserErrors(out io.Writer, errors []string) {
 }
 
 func ReadAndEval(input string) {
-	l := lexer.New(input)
+	std := util.LoadStd()
+	l := lexer.New(std + input)
 	p := parser.New(l)
-	pro := p.ParseProgram()
 	env := object.NewEnvironment()
-	fmt.Printf(">> %v\n", evaluator.Eval(pro, env).Inspect())
+	program := p.ParseProgram()
+	evaluator.Eval(program, env)
+	// fmt.Printf(">> %v\n", evaluator.Eval(pro, env).Inspect())
 }

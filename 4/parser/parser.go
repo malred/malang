@@ -12,16 +12,21 @@ import (
 const (
 	_ int = iota // 0
 	LOWEST
+	OR         // ||
+	AND        // &&
 	EQUALS     // ==
 	LESSGEATER // > or <
 	SUM        // +
 	PRODUCT    // *
 	PREFIX     // -X or !X
 	CALL       // myFunction(X)
+	INDEX      // array[index]
 )
 
 // 优先级map
 var precedences = map[token.TokenType]int{
+	token.OR:       OR,
+	token.AND:      AND,
 	token.EQ:       EQUALS,
 	token.NOT_EQ:   EQUALS,
 	token.LT:       LESSGEATER,
@@ -31,6 +36,7 @@ var precedences = map[token.TokenType]int{
 	token.SLASH:    PRODUCT,
 	token.ASTERISK: PRODUCT,
 	token.LPAREN:   CALL,
+	token.LBRACKET: INDEX,
 }
 
 type (
@@ -120,6 +126,7 @@ func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
 		Left:     left,
 	}
 
+	// 查找不到优先级不会当作中缀表达式进行解析,而是作为前缀
 	precedence := p.curPrecedence()
 	// 进入下一个词法单元然后填充Right
 	p.nextToken()
@@ -237,7 +244,7 @@ func (p *Parser) parseFunctionParameter() []*ast.Identifier {
 
 // 解析函数-函数表达式-前缀
 func (p *Parser) parseFunctionLiteral() ast.Expression {
-	lit := &ast.FunctionLiteral{}
+	lit := &ast.FunctionLiteral{Token: p.curToken}
 
 	// fn(
 	if !p.expectPeek(token.LPAREN) {
@@ -287,12 +294,106 @@ func (p *Parser) parseCallArguments() []ast.Expression {
 // 解析函数-调用表达式-中缀
 func (p *Parser) parseCallExpression(function ast.Expression) ast.Expression {
 	exp := &ast.CallExpression{Token: p.curToken, Function: function}
-	exp.Arguments = p.parseCallArguments()
+	exp.Arguments = p.parseExpressionList(token.RPAREN)
 	return exp
 }
 
+// 解析函数-字符串-前缀
 func (p *Parser) parseStringLiteral() ast.Expression {
 	return &ast.StringLiteral{Token: p.curToken, Value: p.curToken.Literal}
+}
+
+// 解析数组内的表达式
+func (p *Parser) parseExpressionList(end token.TokenType) []ast.Expression {
+	list := []ast.Expression{}
+
+	if p.peekTokenIs(end) {
+		p.nextToken()
+		// []
+		return list
+	}
+
+	p.nextToken()
+	list = append(list, p.parseExpression(LOWEST))
+
+	// [
+	for p.peekTokenIs(token.COMMA) {
+		p.nextToken() // [1
+		p.nextToken() // [1,
+		list = append(list, p.parseExpression(LOWEST))
+	}
+
+	if !p.expectPeek(end) {
+		return nil
+	}
+
+	return list
+}
+
+// 解析函数-数组字面量-前缀
+func (p *Parser) parseArrayLiteral() ast.Expression {
+	array := &ast.ArrayLiteral{Token: p.curToken}
+	array.Elements = p.parseExpressionList(token.RBRACKET)
+	return array
+}
+
+// 解析函数-索引运算符-中缀
+func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
+	exp := &ast.IndexExpression{Token: p.curToken, Left: left}
+
+	p.nextToken()
+	exp.Index = p.parseExpression(LOWEST)
+
+	if !p.expectPeek(token.RBRACKET) {
+		return nil
+	}
+
+	return exp
+}
+
+// 解析函数-注释-前缀
+func (p *Parser) parseCommentLiteral() ast.Expression {
+	return &ast.StringLiteral{Value: p.curToken.Literal}
+}
+
+// 解析函数-导入-前缀
+func (p *Parser) parseUseLiteral() ast.Expression {
+	// 只需要导入,不需要求值
+	use := p.curToken
+	p.nextToken()
+	f := p.curToken.Literal + ".mal"
+	return &ast.UseExpression{Token: use, FileName: f}
+}
+
+// 解析函数-哈希表-前缀
+func (p *Parser) parseHashLiteral() ast.Expression {
+	hash := &ast.HashLiteral{Token: p.curToken}
+	hash.Pairs = make(map[ast.Expression]ast.Expression)
+
+	for !p.peekTokenIs(token.RBRACE) {
+		p.nextToken()
+		// {"key"
+		key := p.parseExpression(LOWEST)
+
+		// {"key":
+		if !p.expectPeek(token.COLON) {
+			return nil
+		}
+
+		// {"key":"val"
+		p.nextToken()
+		val := p.parseExpression(LOWEST)
+		hash.Pairs[key] = val
+
+		if !p.peekTokenIs(token.RBRACE) && !p.expectPeek(token.COMMA) {
+			return nil
+		}
+	}
+	// {"key":"val","key1":"val1"}
+	if !p.expectPeek(token.RBRACE) {
+		return nil
+	}
+	return hash
 }
 
 // 创建解析器
@@ -311,6 +412,10 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.IF, p.parseIfExpression)
 	p.registerPrefix(token.FUNCTION, p.parseFunctionLiteral)
 	p.registerPrefix(token.STRING, p.parseStringLiteral)
+	p.registerPrefix(token.LBRACKET, p.parseArrayLiteral)
+	p.registerPrefix(token.COMMENT, p.parseCommentLiteral)
+	p.registerPrefix(token.USE, p.parseUseLiteral)
+	p.registerPrefix(token.LBRACE, p.parseHashLiteral)
 
 	p.infixParseFns = make(map[token.TokenType]infixParseFn)
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
@@ -321,7 +426,10 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.NOT_EQ, p.parseInfixExpression)
 	p.registerInfix(token.LT, p.parseInfixExpression)
 	p.registerInfix(token.GT, p.parseInfixExpression)
+	p.registerInfix(token.AND, p.parseInfixExpression)
+	p.registerInfix(token.OR, p.parseInfixExpression)
 	p.registerInfix(token.LPAREN, p.parseCallExpression)
+	p.registerInfix(token.LBRACKET, p.parseIndexExpression)
 
 	// 读取两个词法单元,设置peekToken和curToken
 	p.nextToken()
@@ -403,7 +511,7 @@ func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 
 	stmt.ReturnValue = p.parseExpression(LOWEST)
 
-	for !p.curTokenIs(token.SEMICOLON) {
+	for p.curTokenIs(token.SEMICOLON) {
 		p.nextToken()
 	}
 

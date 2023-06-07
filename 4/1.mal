@@ -1,3 +1,4 @@
+use 2
 let x = fn(x,y){
     return x + y;
 }

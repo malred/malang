@@ -291,3 +291,44 @@ func TestBuiltinFunctions(t *testing.T) {
 		}
 	}
 }
+func TestArrayLiterals(t *testing.T) {
+	input := `[1, 2 * 2, 3 + 3]`
+
+	eval := testEval(input)
+	res, ok := eval.(*object.Array)
+	if !ok {
+		t.Fatalf("exp not Array. got=%T", eval)
+	}
+	if len(res.Elements) != 3 {
+		t.Fatalf("len(array.Elements) not 3. got=%d", len(res.Elements))
+	}
+	testIntegerObject(t, res.Elements[0], 1)
+	testIntegerObject(t, res.Elements[1], 4)
+	testIntegerObject(t, res.Elements[2], 6)
+}
+func TestArrayIndexExpression(t *testing.T) {
+	ts := []struct {
+		input    string
+		expected interface{}
+	}{
+		{"[1,2,3][0]", 1},
+		{"[1,2,3][1]", 2},
+		{"[1,2,3][2]", 3},
+		{"let i = 0; [1][i];", 1},
+		{"[1,2,3][1+1]", 3},
+		{"let myArr=[1,2,3]; myArr[2];", 3},
+		{"let myArr=[1,2,3]; myArr[0]+myArr[1]+myArr[2];", 6},
+		{"let myArr = [1,2,3]; let i = myArr[0]; myArr[i];",2},
+		{"[1,2,3][3]",nil},
+		{"[1,2,3][-1]",nil},
+	}
+	for _,tt:=range ts{
+		eval:=testEval(tt.input)
+		integer,ok:=tt.expected.(int)
+		if ok{
+			testIntegerObject(t,eval,int64(integer))
+		}else {
+			testNullObject(t,eval)
+		}
+	}
+}

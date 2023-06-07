@@ -97,6 +97,18 @@ func (l *Lexer) readString() string {
 	return l.input[position:l.position]
 }
 
+// 读取注释内容
+func (l *Lexer) readComment() string {
+	position := l.position + 1
+	for {
+		l.readChar()
+		if l.ch == '\n' || l.ch == 0 {
+			break
+		}
+	}
+	return l.input[position:l.position]
+}
+
 // 根据当前的ch创建词法单元
 func (l *Lexer) NextToken() token.Token {
 	var tok token.Token
@@ -108,6 +120,28 @@ func (l *Lexer) NextToken() token.Token {
 	case '"':
 		tok.Type = token.STRING
 		tok.Literal = l.readString()
+	case '&':
+		if l.peekChar() == '&' {
+			// 记录当前ch (&)
+			ch := l.ch
+			l.readChar()
+			literal := string(ch) + string(l.ch)
+			tok = token.Token{Type: token.AND, Literal: literal}
+		} else {
+			// 未知符合 &
+			tok = newToken(token.ILLEGAL, l.ch)
+		}
+	case '|':
+		if l.peekChar() == '|' {
+			// 记录当前ch (|)
+			ch := l.ch
+			l.readChar()
+			literal := string(ch) + string(l.ch)
+			tok = token.Token{Type: token.OR, Literal: literal}
+		} else {
+			// 未知符号 |
+			tok = newToken(token.ILLEGAL, l.ch)
+		}
 	case '=':
 		if l.peekChar() == '=' {
 			// 记录当前ch (=)
@@ -133,7 +167,13 @@ func (l *Lexer) NextToken() token.Token {
 			tok = newToken(token.BANG, l.ch)
 		}
 	case '/':
-		tok = newToken(token.SLASH, l.ch)
+		if l.peekChar() == '/' {
+			l.readChar()               // 跳过 /
+			literal := l.readComment() // 读取注释内容
+			tok = token.Token{Type: token.COMMENT, Literal: literal}
+		} else {
+			tok = newToken(token.SLASH, l.ch)
+		}
 	case '*':
 		tok = newToken(token.ASTERISK, l.ch)
 	case '<':
@@ -142,6 +182,8 @@ func (l *Lexer) NextToken() token.Token {
 		tok = newToken(token.GT, l.ch)
 	case ';':
 		tok = newToken(token.SEMICOLON, l.ch)
+	case ':':
+		tok = newToken(token.COLON, l.ch)
 	case '(':
 		tok = newToken(token.LPAREN, l.ch)
 	case ')':
@@ -152,6 +194,10 @@ func (l *Lexer) NextToken() token.Token {
 		tok = newToken(token.LBRACE, l.ch)
 	case '}':
 		tok = newToken(token.RBRACE, l.ch)
+	case '[':
+		tok = newToken(token.LBRACKET, l.ch)
+	case ']':
+		tok = newToken(token.RBRACKET, l.ch)
 	case 0:
 		tok.Literal = ""
 		tok.Type = token.EOF

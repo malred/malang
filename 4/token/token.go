@@ -5,6 +5,7 @@ const (
 	// 特殊类型
 	ILLEGAL = "ILLEGAL" // 未知字符
 	EOF     = "EOF"     // 文件结尾
+	COMMENT = "//"      // 注释
 
 	// 标识符+字面量
 	IDENT  = "IDENT"  // add, foobar, x, y
@@ -18,6 +19,8 @@ const (
 	BANG     = "!"
 	ASTERISK = "*"
 	SLASH    = "/"
+	AND      = "&&"
+	OR       = "||"
 
 	LT = "<"
 	GT = ">"
@@ -28,11 +31,14 @@ const (
 	// 分隔符
 	COMMA     = ","
 	SEMICOLON = ";"
+	COLON     = ":"
 
-	LPAREN = "("
-	RPAREN = ")"
-	LBRACE = "{"
-	RBRACE = "}"
+	LPAREN   = "("
+	RPAREN   = ")"
+	LBRACE   = "{"
+	RBRACE   = "}"
+	LBRACKET = "["
+	RBRACKET = "]"
 
 	// 关键字
 	FUNCTION = "FUNCTION"
@@ -42,6 +48,7 @@ const (
 	IF       = "IF"
 	ELSE     = "ELSE"
 	RETURN   = "RETURN"
+	USE      = "USE"
 )
 
 // 关键字map
@@ -53,6 +60,7 @@ var keywords = map[string]TokenType{
 	"if":     IF,
 	"else":   ELSE,
 	"return": RETURN,
+	"use":    USE,
 }
 
 func LookupIdent(ident string) TokenType {
