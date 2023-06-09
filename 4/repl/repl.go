@@ -145,6 +145,14 @@ func ReadAndEval(input string) {
 	p := parser.New(l)
 	env := object.NewEnvironment()
 	program := p.ParseProgram()
+	if len(p.Errors()) != 0 {
+		fmt.Println(MALRED_LOGO_IMG)
+		fmt.Println(ERROR_LOGO)
+		fmt.Println("Woops! We ran into some monkey business here!\n")
+		for _, msg := range p.Errors() {
+			fmt.Println("\t" + msg + "\n")
+		}
+	}
 	evaluator.Eval(program, env)
 	// fmt.Printf(">> %v\n", evaluator.Eval(pro, env).Inspect())
 }

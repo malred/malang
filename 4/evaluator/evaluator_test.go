@@ -174,6 +174,7 @@ func TestErrorHandling(t *testing.T) {
 		{"if (10 > 1) {{false+false;} return 1;}", "unknown operator: BOOLEAN + BOOLEAN"},
 		{"foobar;", "identifier not found: foobar"},
 		{`"hello" - "world`, "unknown operator: STRING - STRING"},
+		{`{"name": "Monkey"}[fn(x) {x}];`, "unusable as hash key: FUNCTION"},
 	}
 	for _, tt := range ts {
 		eval := testEval(tt.input)
@@ -318,17 +319,96 @@ func TestArrayIndexExpression(t *testing.T) {
 		{"[1,2,3][1+1]", 3},
 		{"let myArr=[1,2,3]; myArr[2];", 3},
 		{"let myArr=[1,2,3]; myArr[0]+myArr[1]+myArr[2];", 6},
-		{"let myArr = [1,2,3]; let i = myArr[0]; myArr[i];",2},
-		{"[1,2,3][3]",nil},
-		{"[1,2,3][-1]",nil},
+		{"let myArr = [1,2,3]; let i = myArr[0]; myArr[i];", 2},
+		{"[1,2,3][3]", nil},
+		{"[1,2,3][-1]", nil},
 	}
-	for _,tt:=range ts{
-		eval:=testEval(tt.input)
-		integer,ok:=tt.expected.(int)
-		if ok{
-			testIntegerObject(t,eval,int64(integer))
-		}else {
-			testNullObject(t,eval)
+	for _, tt := range ts {
+		eval := testEval(tt.input)
+		integer, ok := tt.expected.(int)
+		if ok {
+			testIntegerObject(t, eval, int64(integer))
+		} else {
+			testNullObject(t, eval)
+		}
+	}
+}
+func TestHashLiterals(t *testing.T) {
+	input := `let two = "two";
+	{
+		"one": 10-9,
+		two: 1+1,
+		"thr"+"ee": 6/2,
+		4: 4,
+		true: 5,
+		false: 6
+	}
+	`
+	eval := testEval(input)
+	res, ok := eval.(*object.Hash)
+	if !ok {
+		t.Fatalf("eval didn't return hash. got=%T(%+v)", eval, eval)
+	}
+	exp := map[object.HashKey]int64{
+		(&object.String{Value: "one"}).HashKey():   1,
+		(&object.String{Value: "two"}).HashKey():   2,
+		(&object.String{Value: "three"}).HashKey(): 3,
+		(&object.Integer{Value: 4}).HashKey():      4,
+		TRUE.HashKey():                             5,
+		FALSE.HashKey():                            6,
+	}
+	if len(res.Pairs) != len(exp) {
+		t.Fatalf("hash has wrong num of pairs: %d", len(res.Pairs))
+	}
+	for expKey, expVal := range exp {
+		pair, ok := res.Pairs[expKey]
+		if !ok {
+			t.Errorf("no pair for given key in pairs")
+		}
+		testIntegerObject(t, pair.Value, expVal)
+	}
+}
+func TestHashIndexExpression(t *testing.T) {
+	ts := []struct {
+		input string
+		exp   interface{}
+	}{
+		{
+			`{"foo": 5}["foo"]`,
+			5,
+		},
+		{
+			`{"foo": 5}["bar"]`,
+			nil,
+		},
+		{
+			`let key = "foo"; {"foo": 5}[key]`,
+			5,
+		},
+		{
+			`{}["foo"]`,
+			nil,
+		},
+		{
+			`{5: 5}[5]`,
+			5,
+		},
+		{
+			`{true: 5}[true]`,
+			5,
+		},
+		{
+			`{false: 5}[false]`,
+			5,
+		},
+	}
+	for _, tt := range ts {
+		eval := testEval(tt.input)
+		integer, ok := tt.exp.(int)
+		if ok {
+			testIntegerObject(t, eval, int64(integer))
+		} else {
+			testNullObject(t, eval)
 		}
 	}
 }

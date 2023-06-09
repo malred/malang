@@ -28,7 +28,7 @@ func parseCmd() *Cmd {
 	flag.BoolVar(&cmd.helpFlag, "help", false, "print help message")
 	flag.BoolVar(&cmd.helpFlag, "?", false, "print help message")
 	flag.BoolVar(&cmd.replFlag, "repl", false, "repl")
-	flag.BoolVar(&cmd.versionFlag, "version", false, "print version and exit")
+	flag.BoolVar(&cmd.versionFlag, "v", false, "print version and exit")
 	flag.StringVar(&cmd.cpOption, "filepath", "", "filepath")
 	flag.StringVar(&cmd.cpOption, "f", "", "filepath")
 	flag.Parse()

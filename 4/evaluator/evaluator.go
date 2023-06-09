@@ -254,14 +254,61 @@ func evalArrayIndexExpression(array, index object.Object) object.Object {
 	return arrayObj.Elements[idx]
 }
 
+// 哈希索引求值
+func evalHashIndexExpression(hash, index object.Object) object.Object {
+	hashObj := hash.(*object.Hash)
+
+	k, ok := index.(object.Hashable)
+	if !ok {
+		return newError("unusable as hash key: %s", index.Type())
+	}
+
+	pair, ok := hashObj.Pairs[k.HashKey()]
+	if !ok {
+		return NULL
+	}
+
+	return pair.Value
+}
+
 // 索引表达式求值
 func evalIndexExpression(left, index object.Object) object.Object {
 	switch {
 	case left.Type() == object.ARRAY_OBJ && index.Type() == object.INTEGER_OBJ:
 		return evalArrayIndexExpression(left, index)
+		// 哈希索引表达式
+	case left.Type() == object.HASH_OBJ:
+		return evalHashIndexExpression(left, index)
 	default:
 		return newError("index operator not supported: %s", left.Type())
 	}
+}
+
+// 哈希表求值
+func evalHashLiteral(node *ast.HashLiteral, env *object.Environment) object.Object {
+	pairs := make(map[object.HashKey]object.HashPair)
+
+	for keyNode, valueNode := range node.Pairs {
+		// 解析hash[key] -> 标识符 -> 求值
+		key := Eval(keyNode, env)
+		if isError(key) {
+			return key
+		}
+		// (是否可以)转为hashable类型 -> 是 -> 转
+		// key是否可以求hash(只有int和string,bool可以)
+		hashKey, ok := key.(object.Hashable)
+		if !ok {
+			return newError("unusable as hash key: %s", key.Type())
+		}
+		// 解析hash[key] = value
+		value := Eval(valueNode, env)
+		if isError(value) {
+			return value
+		}
+		hashed := hashKey.HashKey()
+		pairs[hashed] = object.HashPair{Key: key, Value: value}
+	}
+	return &object.Hash{Pairs: pairs}
 }
 
 func Eval(node ast.Node, env *object.Environment) object.Object {
@@ -347,6 +394,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 			return elements[0]
 		}
 		return &object.Array{Elements: elements}
+	// 哈希表
+	case *ast.HashLiteral:
+		return evalHashLiteral(node, env)
 	// 前缀表达式
 	case *ast.PrefixExpression:
 		// 如果一直是!或-,就会一直Eval,直到遇到其他类型,多次执行!或-
@@ -356,7 +406,7 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 			return right
 		}
 		return evalPrefixExpression(node.Operator, right)
-	// 中缀表达式
+		// 中缀表达式
 	case *ast.InfixExpression:
 		left := Eval(node.Left, env)
 		// 判断该中断是不是Error引发的

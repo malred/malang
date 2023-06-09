@@ -49,6 +49,8 @@ const (
 	ELSE     = "ELSE"
 	RETURN   = "RETURN"
 	USE      = "USE"
+	FOR      = "FOR"   // TODO
+	RANGE    = "RANGE" // TODO
 )
 
 // 关键字map
@@ -61,6 +63,8 @@ var keywords = map[string]TokenType{
 	"else":   ELSE,
 	"return": RETURN,
 	"use":    USE,
+	"for":    FOR,
+	"range":  RANGE,
 }
 
 func LookupIdent(ident string) TokenType {
