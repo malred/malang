@@ -1,0 +1,28 @@
+use 2
+use 3
+
+let x = fn(x,y){
+    return x + y
+}
+puts(x)
+let y = fn(x,y){
+    return x - y
+}
+puts(x(y(2,4),8))
+
+let shit = "hello world"
+puts(len(shit))
+
+puts(1)
+
+puts(xx(1,2))
+
+let unless = macro(condition, consequence, alternative) {
+	quote(if (!(unquote(condition))){
+		unquote(consequence);
+	} else {
+		unquote(alternative);
+	});
+};
+
+unless(10 > 5, puts("not greater"), puts("greater")); 

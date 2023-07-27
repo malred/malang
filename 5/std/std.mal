@@ -1,0 +1,24 @@
+let map = fn(arr,f) { // hello
+    let map_iter = fn(arr, accumulated) {
+        // 号      
+        if (len(arr) == 0) { 
+            accumulated;
+        } else { 
+            map_iter(rest(arr), push(accumulated, f(first(arr))));
+        };
+    };
+    map_iter(arr,[]);
+}; 
+let reduce = fn(arr,initial,f){
+    let reduce_iter = fn(arr,res){
+        if (len(arr) == 0) {
+            res
+        }else{
+            reduce_iter(rest(arr),f(res,first(arr)));
+        }
+    };
+    reduce_iter(arr,initial);
+}
+let sum = fn(arr){
+	reduce(arr, 0, fn(initial, el) { initial + el });
+}

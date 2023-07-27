@@ -1,0 +1,7 @@
+let xx = fn(x,y){
+    return x + y
+} 
+let yy = fn(x,y){
+    return x - y
+}
+puts(2)
